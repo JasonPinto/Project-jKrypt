@@ -6,15 +6,15 @@
 ///Copyrights 2015. By Jason L. Pinto & Kishan P. Rao.
 
 /// ////////////////////////PROGRAM FEATURES////////////////////////////////////////
-/// * Object-Oriented Programming Approach used (in C++).
+/// * Object-Oriented Programming Approach (in C++).
 /// * Clean & Simple Code Design.
 /// * Written from Scratch
 /// ////////////////////////IMPROVEMENTS REQUIRED///////////////////////////////////
 /// J Code Description & Documentation
-/// K Parallel Programming using OpenMP, OpenCL, CUDA
+/// K Parallel Programming using OpenMP/ OpenCL/ CUDA
 /// J Implementation of Sockets
 /// J User Interface
-/// J AES-256 Bit encryption
+/// J 256 Bit encryption
 /// J Code Optimization
 /// ////////////////////////PROGRAM STATISTICS//////////////////////////////////////
 /// * Start of Programming: 22 Feb 2015
