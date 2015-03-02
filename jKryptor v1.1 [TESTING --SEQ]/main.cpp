@@ -27,6 +27,7 @@
 #include <cstdio>
 #include <omp.h>
 #include <fstream>
+#include<sys/time.h>
 //#include <cstring>
 
 using namespace std;
@@ -55,7 +56,7 @@ class block
 {
     private:
 
-        ///painText[17] declaration required here.
+        ///plainText[17] declaration required here.
         //char plainText[17];
         //int plainText[17]={0xEA,0x83,0x5C,0xF0,0x04,0x45,0x33,0x2D,0x65,0x5D,0x98,0xAD,0x85,0x96,0xB0,0xC5};
         //char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
@@ -112,21 +113,50 @@ ifstream::pos_type filesize(const char* filename)
     return in.tellg(); 
 }
 
+long long
+timeval_diff(struct timeval *difference,
+             struct timeval *end_time,
+             struct timeval *start_time
+            )
+{
+  struct timeval temp_diff;
+
+  if(difference==NULL)
+  {
+    difference=&temp_diff;
+  }
+
+  difference->tv_sec =end_time->tv_sec -start_time->tv_sec ;
+  difference->tv_usec=end_time->tv_usec-start_time->tv_usec;
+
+  while(difference->tv_usec<0)
+  {
+    difference->tv_usec+=1000000;
+    difference->tv_sec -=1;
+  }
+
+  return 1000000LL*difference->tv_sec+
+                   difference->tv_usec;
+
+}
+
 int main()
 {
+struct timeval start,stop,diff;
     int i;
     char *filename="plaintext.txt";
     int num_of_cores=omp_get_num_procs();//the number of logical cores present
     int fsize=filesize(filename);//the file size
     int length=fsize/num_of_cores;//used for determining the length each thread must read
-    cout<<"CORES : "<<num_of_cores<<" SIZE : "<<fsize<<" LENGTH : "<<length<<endl;
-    ///TO DO:
-    ///Prob if file <= 16 bytes (Append)--Partition?
-    
+    cout<<"CORES : "<<num_of_cores<<" SIZE : "<<fsize<<" LENGTH : "<<length<<endl;    
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
+gettimeofday(&start,NULL);
     block t;
         t.start(0,fsize);
+gettimeofday(&stop,NULL);
+timeval_diff(&diff,&stop,&start);
+printf("TIME SEQ : (%d,%d)\n",diff.tv_sec,diff.tv_usec);
    /* block *t=new block[num_of_cores];
     for(i=0;i<num_of_cores;i++)
     {
@@ -146,13 +176,15 @@ int main()
   //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
 
     cout<<"\n\nProgram successfully executed!\n\n\n";
-
+    getch();
     return 0;
 }
 
 ///CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
 void block::start(int beg,int end)
 {
+    ofstream out;
+    out.open("ciphertext.txt");
     size_t read;
     cout<<"BEG : "<<beg<<" END : "<<end<<endl;
     fs.open("plaintext.txt",ios::in);
@@ -170,8 +202,13 @@ void block::start(int beg,int end)
         display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
         encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
         cout<<"\nCIPHER TEXT "<<endl;
-        display();
+        for(int j=0;j<4;++j)
+        {
+            for(int i=0;i<4;++i)
+            out<<hex<<state[j][i];
+        }
     }
+    out.close();
     fs.close();
 }
 

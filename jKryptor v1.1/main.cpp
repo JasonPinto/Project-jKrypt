@@ -27,6 +27,8 @@
 #include <cstdio>
 #include <omp.h>
 #include <fstream>
+#include<sys/time.h>
+#include<stdlib.h>
 //#include <cstring>
 
 using namespace std;
@@ -51,18 +53,20 @@ void keyExpansion();
 /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+char *filename="plaintext.txt";
 class block
 {
     private:
 
-        ///painText[17] declaration required here.
+        ///plainText[17] declaration required here.
         //char plainText[17];
         //int plainText[17]={0xEA,0x83,0x5C,0xF0,0x04,0x45,0x33,0x2D,0x65,0x5D,0x98,0xAD,0x85,0x96,0xB0,0xC5};
         //char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
         //int plainText[17]={0x87,0x6e,0x46,0xa6,0xf2,0x4c,0xe7,0x8c,0x4d,0x90,0x4a,0xd8,0x97,0xec,0xc3,0x95};
 
         int state[4][4],tempState[4][4],temp;
-        fstream fs;
+        ifstream fs;
+        ofstream temp_fs;
         char plaintext[17];
     public:
 
@@ -84,14 +88,6 @@ class block
                     state[i][j]=plaintext[temp++];
 
         }
-        void getData()
-        {
-            //cout << "Enter plaintext: " << endl;
-            //cin>>plainText;
-            //cout << "Enter key: ";
-            //cin>>keyText;
-            
-        }
 
         ///BELOW CLASS FUNCTIONS MUST NOT BE MODIFIED
         void mixColumns();
@@ -103,7 +99,7 @@ class block
         void addRoundKey(int roundNumber);
         void encrypt();
         void decrypt();
-        void start(int beg,int end);
+        void start(int beg,int end,int fcnt);
 };
 
 ifstream::pos_type filesize(const char* filename)
@@ -115,70 +111,83 @@ ifstream::pos_type filesize(const char* filename)
 int main()
 {
     int i;
-    char *filename="plaintext.txt";
     int num_of_cores=omp_get_num_procs();//the number of logical cores present
     int fsize=filesize(filename);//the file size
     int length=fsize/num_of_cores;//used for determining the length each thread must read
-    cout<<"CORES : "<<num_of_cores<<" SIZE : "<<fsize<<" LENGTH : "<<length<<endl;
-    ///TO DO:
-    ///Prob if file <= 16 bytes (Append)--Partition?
-    
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
-    
+    remove("ciphertext.txt");
     if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
     {
         block t;
-        t.start(0,fsize);
+        t.start(0,fsize,-1);
+        rename("AEStemp-1","ciphertext.txt");
     }
     else
     {
-        block *t=new block[num_of_cores];
+        block *t=new block[num_of_cores];//Create as many threads as the number of logical processors available
         #pragma omp parallel for
         for(i=0;i<num_of_cores;i++)
         {
-            t[i].start(i*length,((i+1)*length));
+            t[i].start(i*length,((i+1)*length),i);
         }
-        cout<<"\nCIPHER TEXT "<<endl;
-        for(i=0;i<num_of_cores;i++)
+        ofstream cipher;
+        cipher.open("AEStemp0",ios::app);
+        cipher.seekp(0,ios::end);
+        ifstream input;
+        for(i=1;i<num_of_cores;i++)
         {
-            t[i].display();
+            char c[2];
+            sprintf(c,"%d",i);
+            string str_temp="AEStemp";
+            str_temp.append(c);
+            input.open(str_temp.c_str());
+            cipher<<input.rdbuf();
+            input.close();
+            remove(str_temp.c_str());
         }
+        cipher.close();
+        rename("AEStemp0","ciphertext.txt");
     }
 
-//    t1.display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-
  //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
-
-    cout<<"\nPLAIN TEXT\n";
   //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
 
     cout<<"\n\nProgram successfully executed!\n\n\n";
-
+    getch();
     return 0;
 }
 
 ///CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
-void block::start(int beg,int end)
+void block::start(int beg,int end,int fcnt)
 {
     size_t read;
-    cout<<"BEG : "<<beg<<" END : "<<end<<endl;
-    fs.open("plaintext.txt",ios::in);
+    //cout<<"BEG : "<<beg<<" END : "<<end<<endl;
+    fs.open(filename);
     fs.seekg(beg);
-    //get 16 blocks in a loop then
+    char c[2];
+    sprintf(c,"%d",fcnt);
+    string str_temp="AEStemp";
+    str_temp.append(c);
+    temp_fs.open(str_temp.c_str());
+    //get 16 blocks in a loop
     while(fs.tellg()<end && !fs.eof())
     {
         read=fs.read(plaintext,16).gcount();
-        //cout<<"\nREAD1 : "<<read<<" PLAIN : "<<plaintext<<endl;
         while(read<16)
             plaintext[read++]=' ';
-        //cout<<"\nREAD2 : "<<read<<" PLAIN : "<<plaintext<<endl;
         createState();//CREATES A 4X4 STATE TO BE WORKED ON
-        cout<<"\nPLAIN TEXT\n";
-        display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
+        //cout<<"\nPLAIN TEXT\n";
+        //display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
         encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+        for(int j=0;j<4;++j)
+        {
+            for(int i=0;i<4;++i)
+            temp_fs<<hex<<state[j][i];
+        }
     }
     fs.close();
+    temp_fs.close();
 }
 
 void block::mixColumns()
