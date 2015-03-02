@@ -1,4 +1,4 @@
-///Project jKrypt V1
+///Project jKrypt V1.1
 
 ///NO PART OR TOKEN OF THIS CODE HAS BEEN COPIED OR REPLICATED FROM ANY SOURCE WHATSOEVER.
 ///NO PART OF THIS CODE MAY BE REPRODUCED,STORED IN OR INTRODUCED INTO A RETRIEVAL SYSTEM, OR TRANSMITTED IN ANY FORM OR BY ANY MEANS (ELECTRONIC, MECHANICAL, SCANNING, RECORDING OR OTHERWISE), WITHOUT THE PRIOR WRITTEN PERMISSION OF THE COPYRIGHT OWNER.
@@ -6,15 +6,16 @@
 ///Copyrights 2015. By Jason L. Pinto & Kishan P. Rao.
 
 /// ////////////////////////PROGRAM FEATURES////////////////////////////////////////
-/// * Object-Oriented Programming Approach (in C++).
+/// * Object-Oriented Programming Approach used (in C++).
 /// * Clean & Simple Code Design.
 /// * Written from Scratch
+/// * OpenMP Parallelization (since v1.1)
 /// ////////////////////////IMPROVEMENTS REQUIRED///////////////////////////////////
 /// J Code Description & Documentation
-/// K Parallel Programming using OpenMP/ OpenCL/ CUDA
+/// K Parallel Programming using OpenMP, OpenCL, CUDA
 /// J Implementation of Sockets
 /// J User Interface
-/// J 256 Bit encryption
+/// J AES-256 Bit encryption
 /// J Code Optimization
 /// ////////////////////////PROGRAM STATISTICS//////////////////////////////////////
 /// * Start of Programming: 22 Feb 2015
@@ -24,7 +25,8 @@
 #include <iostream>
 #include <conio.h>
 #include <cstdio>
-//#include <fstream>
+#include <omp.h>
+#include <fstream>
 //#include <cstring>
 
 using namespace std;
@@ -43,7 +45,8 @@ int inverseSBox[256]={0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38, 0xBF, 0x40
 int RC[11]={0,0x1,0x2,0x4,0x8,0x10,0x20,0x40,0x80,0x1B,0x36}, Rcon[4]={0,0,0,0};
 //char keyText[17];
 //int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98};
-int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98}, roundKey[44][4];
+int keyText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
+int roundKey[44][4];
 void keyExpansion();
 /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -52,14 +55,15 @@ class block
 {
     private:
 
-        ///plainText[17] declaration required here.
+        ///painText[17] declaration required here.
         //char plainText[17];
         //int plainText[17]={0xEA,0x83,0x5C,0xF0,0x04,0x45,0x33,0x2D,0x65,0x5D,0x98,0xAD,0x85,0x96,0xB0,0xC5};
-        char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
+        //char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
         //int plainText[17]={0x87,0x6e,0x46,0xa6,0xf2,0x4c,0xe7,0x8c,0x4d,0x90,0x4a,0xd8,0x97,0xec,0xc3,0x95};
 
         int state[4][4],tempState[4][4],temp;
-
+        fstream fs;
+        char plaintext[17];
     public:
 
         void display()
@@ -73,19 +77,20 @@ class block
         }
         void createState()
         {
-            //int plainText[17]={0x1,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,0xfe,0xdc,0xba,0x98,0x76,0x54,0x32,0x10};
+            //int plainText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
             temp=0;
             for(int j=0;j<4;++j)
                 for(int i=0;i<4;++i)
-                    state[i][j]=plainText[temp++];
+                    state[i][j]=plaintext[temp++];
 
         }
         void getData()
         {
-            cout << "Enter plaintext: " << endl;
+            //cout << "Enter plaintext: " << endl;
             //cin>>plainText;
-            cout << "Enter key: ";
+            //cout << "Enter key: ";
             //cin>>keyText;
+            
         }
 
         ///BELOW CLASS FUNCTIONS MUST NOT BE MODIFIED
@@ -98,29 +103,55 @@ class block
         void addRoundKey(int roundNumber);
         void encrypt();
         void decrypt();
+        void start(int beg,int end);
 };
+
+ifstream::pos_type filesize(const char* filename)
+{
+    ifstream in(filename, ifstream::ate | ifstream::binary);
+    return in.tellg(); 
+}
 
 int main()
 {
-    block t1; //DENOTES 'ONE BLOCK' OF PLAINTEXT TO BE ENCRYPTED USING 'ONE OBJECT' t1
-    ///t1.getData(); for built-in input (OPTIONAL)
-
-    t1.createState(); //CREATES A 4X4 STATE TO BE WORKED ON
+    int i;
+    char *filename="plaintext.txt";
+    int num_of_cores=omp_get_num_procs();//the number of logical cores present
+    int fsize=filesize(filename);//the file size
+    int length=fsize/num_of_cores;//used for determining the length each thread must read
+    cout<<"CORES : "<<num_of_cores<<" SIZE : "<<fsize<<" LENGTH : "<<length<<endl;
+    ///TO DO:
+    ///Prob if file <= 16 bytes (Append)--Partition?
+    
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
+    
+    if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
+    {
+        block t;
+        t.start(0,fsize);
+    }
+    else
+    {
+        block *t=new block[num_of_cores];
+        #pragma omp parallel for
+        for(i=0;i<num_of_cores;i++)
+        {
+            t[i].start(i*length,((i+1)*length));
+        }
+        cout<<"\nCIPHER TEXT "<<endl;
+        for(i=0;i<num_of_cores;i++)
+        {
+            t[i].display();
+        }
+    }
+
+//    t1.display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
+
+ //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
 
     cout<<"\nPLAIN TEXT\n";
-    t1.display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-
-    t1.encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
-
-    cout<<"\nCIPHER TEXT\n";
-    t1.display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-
-    t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
-
-    cout<<"\nPLAIN TEXT\n";
-    t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
+  //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
 
     cout<<"\n\nProgram successfully executed!\n\n\n";
 
@@ -128,175 +159,196 @@ int main()
 }
 
 ///CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
-    void block::mixColumns()
+void block::start(int beg,int end)
+{
+    size_t read;
+    cout<<"BEG : "<<beg<<" END : "<<end<<endl;
+    fs.open("plaintext.txt",ios::in);
+    fs.seekg(beg);
+    //get 16 blocks in a loop then
+    while(fs.tellg()<end && !fs.eof())
     {
-        for(int i=0;i<4;++i)
-            for(int j=0;j<4;++j)
-                tempState[i][j]=state[i][j];
+        read=fs.read(plaintext,16).gcount();
+        //cout<<"\nREAD1 : "<<read<<" PLAIN : "<<plaintext<<endl;
+        while(read<16)
+            plaintext[read++]=' ';
+        //cout<<"\nREAD2 : "<<read<<" PLAIN : "<<plaintext<<endl;
+        createState();//CREATES A 4X4 STATE TO BE WORKED ON
+        cout<<"\nPLAIN TEXT\n";
+        display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
+        encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+    }
+    fs.close();
+}
 
-        for(int i=0;i<4;++i)
-        {
+void block::mixColumns()
+{
+    for(int i=0;i<4;++i)
+        for(int j=0;j<4;++j)
+            tempState[i][j]=state[i][j];
 
-            tempState[0][i]= multiplyBy2[state[0][i]] xor multiplyBy3[state[1][i]] xor state[2][i] xor state[3][i];
-            tempState[1][i]= state[0][i] xor multiplyBy2[state[1][i]] xor multiplyBy3[state[2][i]] xor state[3][i];
-            tempState[2][i]= state[0][i] xor state[1][i] xor multiplyBy2[state[2][i]] xor multiplyBy3[state[3][i]];
-            tempState[3][i]= multiplyBy3[state[0][i]] xor state[1][i] xor state[2][i] xor multiplyBy2[state[3][i]];
+    for(int i=0;i<4;++i)
+    {
 
-        }
-        for(int i=0;i<4;++i)
-            for(int j=0;j<4;++j)
-                state[i][j]=tempState[i][j];
+        tempState[0][i]= multiplyBy2[state[0][i]] xor multiplyBy3[state[1][i]] xor state[2][i] xor state[3][i];
+        tempState[1][i]= state[0][i] xor multiplyBy2[state[1][i]] xor multiplyBy3[state[2][i]] xor state[3][i];
+        tempState[2][i]= state[0][i] xor state[1][i] xor multiplyBy2[state[2][i]] xor multiplyBy3[state[3][i]];
+        tempState[3][i]= multiplyBy3[state[0][i]] xor state[1][i] xor state[2][i] xor multiplyBy2[state[3][i]];
 
     }
-    void block::inverseMixColumns()
+    for(int i=0;i<4;++i)
+        for(int j=0;j<4;++j)
+            state[i][j]=tempState[i][j];
+
+}
+void block::inverseMixColumns()
+{
+    for(int i=0;i<4;++i)
+        for(int j=0;j<4;++j)
+            tempState[i][j]=state[i][j];
+
+    for(int i=0;i<4;++i)
     {
-        for(int i=0;i<4;++i)
-            for(int j=0;j<4;++j)
-                tempState[i][j]=state[i][j];
-
-        for(int i=0;i<4;++i)
-        {
-            tempState[0][i]= multiplyBy14[state[0][i]] xor multiplyBy11[state[1][i]] xor multiplyBy13[state[2][i]] xor multiplyBy9[state[3][i]];
-            tempState[1][i]= multiplyBy9[state[0][i]] xor multiplyBy14[state[1][i]] xor multiplyBy11[state[2][i]] xor multiplyBy13[state[3][i]];
-            tempState[2][i]= multiplyBy13[state[0][i]] xor multiplyBy9[state[1][i]] xor multiplyBy14[state[2][i]] xor multiplyBy11[state[3][i]];
-            tempState[3][i]= multiplyBy11[state[0][i]] xor multiplyBy13[state[1][i]] xor multiplyBy9[state[2][i]] xor multiplyBy14[state[3][i]];
-        }
-        for(int i=0;i<4;++i)
-            for(int j=0;j<4;++j)
-                state[i][j]=tempState[i][j];
-
+        tempState[0][i]= multiplyBy14[state[0][i]] xor multiplyBy11[state[1][i]] xor multiplyBy13[state[2][i]] xor multiplyBy9[state[3][i]];
+        tempState[1][i]= multiplyBy9[state[0][i]] xor multiplyBy14[state[1][i]] xor multiplyBy11[state[2][i]] xor multiplyBy13[state[3][i]];
+        tempState[2][i]= multiplyBy13[state[0][i]] xor multiplyBy9[state[1][i]] xor multiplyBy14[state[2][i]] xor multiplyBy11[state[3][i]];
+        tempState[3][i]= multiplyBy11[state[0][i]] xor multiplyBy13[state[1][i]] xor multiplyBy9[state[2][i]] xor multiplyBy14[state[3][i]];
     }
-    void block::shiftRows()
+    for(int i=0;i<4;++i)
+        for(int j=0;j<4;++j)
+            state[i][j]=tempState[i][j];
+
+}
+void block::shiftRows()
+{
+    temp=state[1][0];
+    state[1][0]=state[1][1];
+    state[1][1]=state[1][2];
+    state[1][2]=state[1][3];
+    state[1][3]=temp;
+
+    temp=state[2][0];
+    state[2][0]=state[2][2];
+    state[2][2]=temp;
+    temp=state[2][1];
+    state[2][1]=state[2][3];
+    state[2][3]=temp;
+
+    temp=state[3][3];
+    state[3][3]=state[3][2];
+    state[3][2]=state[3][1];
+    state[3][1]=state[3][0];
+    state[3][0]=temp;
+}
+void block::inverseShiftRows()
+{
+    temp=state[1][3];
+    state[1][3]=state[1][2];
+    state[1][2]=state[1][1];
+    state[1][1]=state[1][0];
+    state[1][0]=temp;
+
+    temp=state[2][0];
+    state[2][0]=state[2][2];
+    state[2][2]=temp;
+    temp=state[2][1];
+    state[2][1]=state[2][3];
+    state[2][3]=temp;
+
+    temp=state[3][0];
+    state[3][0]=state[3][1];
+    state[3][1]=state[3][2];
+    state[3][2]=state[3][3];
+    state[3][3]=temp;
+}
+void block::substituteBytes()
+{
+    for(int j=0;j<4;++j)
+        for(int i=0;i<4;++i)
+            state[j][i]=sBox[state[j][i]];
+}
+void block::inverseSubstituteBytes()
+{
+    for(int j=0;j<4;++j)
+        for(int i=0;i<4;++i)
+            state[j][i]=inverseSBox[state[j][i]];
+}
+void block::addRoundKey(int roundNumber)
+{
+    for(int j=0;j<4;++j)
+        for(int i=0;i<4;++i)
+            state[j][i]=state[j][i] xor roundKey[roundNumber*4+j][i];
+}
+
+void block::encrypt()
+{
+
+    //ENCRYPTION STARTS HERE
+    addRoundKey(0);
+
+    for(int k=1;k<10;++k)
     {
-        temp=state[1][0];
-        state[1][0]=state[1][1];
-        state[1][1]=state[1][2];
-        state[1][2]=state[1][3];
-        state[1][3]=temp;
-
-        temp=state[2][0];
-        state[2][0]=state[2][2];
-        state[2][2]=temp;
-        temp=state[2][1];
-        state[2][1]=state[2][3];
-        state[2][3]=temp;
-
-        temp=state[3][3];
-        state[3][3]=state[3][2];
-        state[3][2]=state[3][1];
-        state[3][1]=state[3][0];
-        state[3][0]=temp;
-    }
-    void block::inverseShiftRows()
-    {
-        temp=state[1][3];
-        state[1][3]=state[1][2];
-        state[1][2]=state[1][1];
-        state[1][1]=state[1][0];
-        state[1][0]=temp;
-
-        temp=state[2][0];
-        state[2][0]=state[2][2];
-        state[2][2]=temp;
-        temp=state[2][1];
-        state[2][1]=state[2][3];
-        state[2][3]=temp;
-
-        temp=state[3][0];
-        state[3][0]=state[3][1];
-        state[3][1]=state[3][2];
-        state[3][2]=state[3][3];
-        state[3][3]=temp;
-    }
-    void block::substituteBytes()
-        {
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                    state[j][i]=sBox[state[j][i]];
-        }
-    void block::inverseSubstituteBytes()
-        {
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                    state[j][i]=inverseSBox[state[j][i]];
-        }
-    void block::addRoundKey(int roundNumber)
-        {
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                    state[j][i]=state[j][i] xor roundKey[roundNumber*4+j][i];
-        }
-
-    void block::encrypt()
-    {
-
-        //ENCRYPTION STARTS HERE
-        addRoundKey(0);
-
-        for(int k=1;k<10;++k)
-        {
-            substituteBytes();
-            shiftRows();
-            mixColumns();
-            addRoundKey(k);
-        }
-
         substituteBytes();
         shiftRows();
-        addRoundKey(10);
-
-        //ENCRYPTION ENDS HERE
-    }
-
-    void block::decrypt()
-    {
-        //DECRYPTION STARTS HERE
-
-        addRoundKey(10);
-        for(int k=9;k>0;--k)
-        {
-        inverseShiftRows();
-        inverseSubstituteBytes();
+        mixColumns();
         addRoundKey(k);
-        inverseMixColumns();
-        }
-
-        inverseShiftRows();
-        inverseSubstituteBytes();
-        addRoundKey(0);
-
-        //DECRYPTION ENDS HERE
     }
+
+    substituteBytes();
+    shiftRows();
+    addRoundKey(10);
+
+    //ENCRYPTION ENDS HERE
+}
+
+void block::decrypt()
+{
+    //DECRYPTION STARTS HERE
+
+    addRoundKey(10);
+    for(int k=9;k>0;--k)
+    {
+    inverseShiftRows();
+    inverseSubstituteBytes();
+    addRoundKey(k);
+    inverseMixColumns();
+    }
+
+    inverseShiftRows();
+    inverseSubstituteBytes();
+    addRoundKey(0);
+
+    //DECRYPTION ENDS HERE
+}
 
 
 ///END OF CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
 
 void keyExpansion()
+{
+    for(int i=0;i<4;++i)
     {
-        for(int i=0;i<4;++i)
-        {
-            roundKey[0][i]=keyText[4*i];
-            roundKey[1][i]=keyText[4*i+1];
-            roundKey[2][i]=keyText[4*i+2];
-            roundKey[3][i]=keyText[4*i+3];
-        }
-        for(int i=4;i<=44;i=i+4)
-        {
-            Rcon[0]=RC[i/4];
+        roundKey[0][i]=keyText[4*i];
+        roundKey[1][i]=keyText[4*i+1];
+        roundKey[2][i]=keyText[4*i+2];
+        roundKey[3][i]=keyText[4*i+3];
+    }
+    for(int i=4;i<=44;i=i+4)
+    {
+        Rcon[0]=RC[i/4];
 
-              roundKey[i][0]=(sBox[roundKey[i-3][3]]  xor Rcon[0])xor roundKey[i-4][0];
-            roundKey[i+1][0]=(sBox[roundKey[i-2][3]]  xor Rcon[1])xor roundKey[i-3][0];
-            roundKey[i+2][0]=(sBox[roundKey[i-1][3]]  xor Rcon[2])xor roundKey[i-2][0];
-            roundKey[i+3][0]=(sBox[roundKey[i-4][3]]  xor Rcon[3])xor roundKey[i-1][0];
-
-            for(int j=0;j<4;++j)
-            {
+        roundKey[i][0]=(sBox[roundKey[i-3][3]]  xor Rcon[0])xor roundKey[i-4][0];
+        roundKey[i+1][0]=(sBox[roundKey[i-2][3]]  xor Rcon[1])xor roundKey[i-3][0];
+        roundKey[i+2][0]=(sBox[roundKey[i-1][3]]  xor Rcon[2])xor roundKey[i-2][0];
+        roundKey[i+3][0]=(sBox[roundKey[i-4][3]]  xor Rcon[3])xor roundKey[i-1][0];
+        for(int j=0;j<4;++j)
+        {
             roundKey[i+j][1]=roundKey[i+j][0] xor roundKey[i+j-4][1];
             roundKey[i+j][2]=roundKey[i+j][1] xor roundKey[i+j-4][2];
             roundKey[i+j][3]=roundKey[i+j][2] xor roundKey[i+j-4][3];
-            }
         }
     }
+}
 
 
 ///END OF SOURCE CODE////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
