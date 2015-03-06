@@ -105,7 +105,7 @@ class block
 ifstream::pos_type filesize(const char* filename)
 {
     ifstream in(filename, ifstream::ate | ifstream::binary);
-    return in.tellg(); 
+    return in.tellg();
 }
 
 int main()

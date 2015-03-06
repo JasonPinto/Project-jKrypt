@@ -8,3 +8,12 @@
 	<sys/time.h>
 	<stdlib.h>
 
+1425318519 source:c:\users\jason pinto\cloudlabs inc\projects\project jkrypt\project-jkrypt\project-jkrypt\jkryptor v1.1\main.cpp
+	<iostream>
+	<conio.h>
+	<cstdio>
+	<omp.h>
+	<fstream>
+	<sys/time.h>
+	<stdlib.h>
+

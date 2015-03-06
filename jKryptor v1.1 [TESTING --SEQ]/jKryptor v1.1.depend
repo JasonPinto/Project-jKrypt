@@ -14,3 +14,11 @@
 	<fstream>
 	<sys/time.h>
 
+1425318230 source:c:\users\jason pinto\cloudlabs inc\projects\project jkrypt\project-jkrypt\project-jkrypt\jkryptor v1.1 [testing --seq]\main.cpp
+	<iostream>
+	<conio.h>
+	<cstdio>
+	<omp.h>
+	<fstream>
+	<sys/time.h>
+
